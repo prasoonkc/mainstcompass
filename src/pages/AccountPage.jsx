@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useOutletContext } from 'react-router-dom';
-import { LockKeyhole, UserRound } from 'lucide-react';
+import { LockKeyhole, MailCheck, UserRound, X } from 'lucide-react';
 import { useAppAuth } from '../hooks/useAuth.jsx';
 
 export function AccountPage() {
@@ -10,6 +10,7 @@ export function AccountPage() {
   const [signInValues, setSignInValues] = useState({ email: '', password: '' });
   const [registerValues, setRegisterValues] = useState({ name: '', email: '', password: '', confirmPassword: '' });
   const [feedback, setFeedback] = useState('');
+  const [verificationNotice, setVerificationNotice] = useState('');
 
   function handleSignIn(event) {
     event.preventDefault();
@@ -20,7 +21,20 @@ export function AccountPage() {
   function handleRegister(event) {
     event.preventDefault();
     const result = register(registerValues);
+    if (result.ok) {
+      setFeedback('');
+      setVerificationNotice(result.message);
+      setMode('signin');
+      setRegisterValues({ name: '', email: '', password: '', confirmPassword: '' });
+      setSignInValues((current) => ({ ...current, email: registerValues.email }));
+      return;
+    }
+
     setFeedback(result.message);
+  }
+
+  function handleGoogleProofOfConcept() {
+    setFeedback('Continue with Google is shown as a proof of concept and can be connected through Auth0 or Supabase Auth later.');
   }
 
   return (
@@ -49,9 +63,19 @@ export function AccountPage() {
             </button>
           </div>
         ) : authMode === 'auth0' ? (
-          <button type="button" disabled={isLoading} onClick={() => login()} className="mt-6 rounded-full bg-ink px-5 py-3 text-sm font-semibold text-white">
-            {isLoading ? 'Loading...' : 'Continue securely'}
-          </button>
+          <div className="mt-6 space-y-3">
+            <button type="button" disabled={isLoading} onClick={() => login()} className="rounded-full bg-ink px-5 py-3 text-sm font-semibold text-white">
+              {isLoading ? 'Loading...' : 'Continue securely'}
+            </button>
+            <button
+              type="button"
+              onClick={handleGoogleProofOfConcept}
+              className="inline-flex items-center justify-center gap-3 rounded-full border border-ink/10 bg-white px-5 py-3 text-sm font-semibold text-ink transition hover:bg-mist"
+            >
+              <GoogleMark />
+              Continue with Google
+            </button>
+          </div>
         ) : (
           <div className="mt-6 space-y-4">
             <div className="inline-flex rounded-full bg-mist p-1">
@@ -95,8 +119,17 @@ export function AccountPage() {
                     required
                   />
                 </label>
+                <p className="text-xs text-ink/55">Use at least 8 characters with one uppercase letter, one lowercase letter, and one number.</p>
                 <button type="submit" className="rounded-full bg-ink px-5 py-3 text-sm font-semibold text-white">
                   Sign in
+                </button>
+                <button
+                  type="button"
+                  onClick={handleGoogleProofOfConcept}
+                  className="inline-flex w-full items-center justify-center gap-3 rounded-full border border-ink/10 bg-white px-5 py-3 text-sm font-semibold text-ink transition hover:bg-mist"
+                >
+                  <GoogleMark />
+                  Continue with Google
                 </button>
               </form>
             ) : (
@@ -134,6 +167,7 @@ export function AccountPage() {
                     required
                   />
                 </label>
+                <p className="text-xs text-ink/55">Use at least 8 characters with one uppercase letter, one lowercase letter, and one number.</p>
                 <label className="block text-sm">
                   <span className="mb-2 block font-medium text-ink">Confirm password</span>
                   <input
@@ -163,7 +197,49 @@ export function AccountPage() {
           <SummaryCard label="Copied deals" value={appState.copiedDeals.length} />
         </div>
       </section>
+
+      {verificationNotice ? (
+        <div className="fixed inset-0 z-[1000] flex items-center justify-center bg-ink/45 p-4">
+          <div className="w-full max-w-md rounded-[2rem] bg-white p-6 shadow-card">
+            <div className="flex items-start justify-between gap-4">
+              <div>
+                <p className="text-xs font-semibold uppercase tracking-[0.28em] text-moss">Email verification</p>
+                <h3 className="mt-1 flex items-center gap-2 text-2xl font-semibold text-ink"><MailCheck size={22} /> Check your inbox</h3>
+              </div>
+              <button
+                type="button"
+                onClick={() => setVerificationNotice('')}
+                className="inline-flex h-10 w-10 items-center justify-center rounded-full bg-mist text-ink"
+                aria-label="Close verification notice"
+              >
+                <X size={18} />
+              </button>
+            </div>
+            <p className="mt-4 text-sm text-ink/70">{verificationNotice}</p>
+            <div className="mt-6 flex justify-end">
+              <button
+                type="button"
+                onClick={() => setVerificationNotice('')}
+                className="rounded-full bg-ink px-5 py-3 text-sm font-semibold text-white"
+              >
+                Back to sign in
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
     </div>
+  );
+}
+
+function GoogleMark() {
+  return (
+    <svg width="18" height="18" viewBox="0 0 24 24" aria-hidden="true">
+      <path fill="#EA4335" d="M12 10.2v3.9h5.5c-.2 1.3-1.5 3.8-5.5 3.8-3.3 0-6-2.7-6-6s2.7-6 6-6c1.9 0 3.1.8 3.8 1.5l2.6-2.5C16.8 3.4 14.6 2.5 12 2.5 6.8 2.5 2.5 6.8 2.5 12S6.8 21.5 12 21.5c6.9 0 9.1-4.8 9.1-7.3 0-.5-.1-.8-.1-1.1H12Z" />
+      <path fill="#34A853" d="M2.5 7.3l3.2 2.4C6.6 7.3 9.1 5.6 12 5.6c1.9 0 3.1.8 3.8 1.5l2.6-2.5C16.8 3.4 14.6 2.5 12 2.5c-3.7 0-6.9 2.1-8.5 4.8Z" opacity="0.85" />
+      <path fill="#FBBC05" d="M2.5 16.7 6 14c.8 2.5 3.1 4 6 4 3.8 0 5.1-2.6 5.4-3.8H12v-3.9h9c.1.3.1.7.1 1.1 0 2.5-2.2 7.3-9.1 7.3-4.7 0-8.7-3.8-9.5-8.8Z" opacity="0.9" />
+      <path fill="#4285F4" d="M2.5 7.3C1.9 8.6 1.5 10.3 1.5 12s.4 3.4 1 4.7L6 14c-.2-.6-.3-1.3-.3-2s.1-1.4.3-2l-3.5-2.7Z" />
+    </svg>
   );
 }
 

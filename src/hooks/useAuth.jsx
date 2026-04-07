@@ -33,6 +33,7 @@ function LocalAuthProvider({ children }) {
       register: ({ name, email, password, confirmPassword }) => {
         const trimmedName = name.trim();
         const normalizedEmail = email.trim().toLowerCase();
+        const passwordPattern = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d).+$/;
 
         if (!trimmedName) {
           return { ok: false, message: 'Enter your name.' };
@@ -44,6 +45,13 @@ function LocalAuthProvider({ children }) {
 
         if (password.length < 8) {
           return { ok: false, message: 'Passwords must be at least 8 characters.' };
+        }
+
+        if (!passwordPattern.test(password)) {
+          return {
+            ok: false,
+            message: 'Password must include at least one number, one uppercase letter, and one lowercase letter.',
+          };
         }
 
         if (password !== confirmPassword) {
@@ -62,14 +70,11 @@ function LocalAuthProvider({ children }) {
         };
 
         setAccounts([...accounts, nextAccount]);
-        setUser({
-          id: normalizedEmail,
-          name: trimmedName,
-          email: normalizedEmail,
-          mode: 'local',
-        });
 
-        return { ok: true, message: 'Account created successfully.' };
+        return {
+          ok: true,
+          message: 'We sent a verification link to your email. Please verify your email before signing in.',
+        };
       },
       logout: () => setUser(null),
       authMode: 'local',
