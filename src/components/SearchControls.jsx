@@ -16,9 +16,6 @@ export function SearchControls({ appState, appActions }) {
         <div className="max-w-2xl">
           <p className="text-xs font-semibold uppercase tracking-[0.28em] text-moss">Location-first discovery</p>
           <h2 className="mt-2 text-2xl font-semibold tracking-tight">Search any address, city, ZIP code, or neighborhood</h2>
-          <p className="mt-2 text-sm text-ink/70">
-            Results blend live map data with featured partner businesses, then let users sort by rating, reviews, distance, or deals.
-          </p>
         </div>
         <div className="grid gap-3 text-sm sm:grid-cols-3">
           <div className="rounded-3xl bg-mist px-4 py-3">
