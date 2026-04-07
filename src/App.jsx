@@ -23,6 +23,7 @@ const defaultFilters = {
 
 function AppShell() {
   const { isAuthenticated, user } = useAppAuth();
+  // These local stores keep the demo self-contained while still behaving like a real app.
   const [storedLocation, setStoredLocation] = useLocalStorageState(STORAGE_KEYS.location, DEFAULT_CENTER);
   const [favoritesByUser, setFavoritesByUser] = useLocalStorageState(STORAGE_KEYS.favorites, {});
   const [reviews, setReviews] = useLocalStorageState(STORAGE_KEYS.reviews, []);
@@ -44,6 +45,7 @@ function AppShell() {
     let isActive = true;
 
     async function discoverBusinesses() {
+      // Pull nearby businesses whenever the user changes the search area.
       setIsDiscovering(true);
       setErrorMessage('');
 
@@ -96,7 +98,7 @@ function AppShell() {
     [filteredBusinesses],
   );
 
-    const favoriteBusinesses = enrichedBusinesses.filter((business) => business.isFavorite);
+  const favoriteBusinesses = enrichedBusinesses.filter((business) => business.isFavorite);
   const reviewHistory = reviews.filter((review) => review.userId === currentUserId);
   const analyticsReport = useMemo(
     () => buildAnalyticsReport(enrichedBusinesses, reviews),
@@ -209,6 +211,7 @@ function AppShell() {
     }));
   }
 
+  // Pages read from appState; child components trigger work through appActions.
   const appState = {
     location,
     locationMatches,

@@ -2,8 +2,10 @@ import { featuredBusinesses } from '../data/featuredBusinesses';
 import { CATEGORY_CONFIG } from './constants';
 import { calculateDistanceMiles, isNearLittleRock } from './geo';
 
+// Read the live business API key from Vite env vars.
 const GEOAPIFY_KEY = import.meta.env.VITE_GEOAPIFY_KEY;
 
+// Convert raw place types into the app's shared category names.
 const CATEGORY_LOOKUPS = {
   cafe: 'food-drink',
   restaurant: 'food-drink',
@@ -65,29 +67,58 @@ const CATEGORY_LOOKUPS = {
   social_facility: 'community',
 };
 
+// Try several Overpass mirrors because public map endpoints can be unreliable.
 const OVERPASS_ENDPOINTS = [
   'https://overpass-api.de/api/interpreter',
   'https://overpass.kumi.systems/api/interpreter',
   'https://overpass.private.coffee/api/interpreter',
 ];
 
+// Geoapify lets us request broad groups of business-related places at once.
 const GEOAPIFY_CATEGORY_GROUPS = [
   'catering',
   'commercial',
   'healthcare',
-  'leisure',
-  'tourism',
-  'education',
   'service',
   'entertainment',
 ].join(',');
 
+const BLOCKED_GEOAPIFY_CATEGORY_PATTERNS = [
+  /service\.police/i,
+  /service\.fire_station/i,
+  /service\.post_office/i,
+  /service\.public/i,
+  /service\.government/i,
+  /tourism\.sights/i,
+  /leisure\.park/i,
+  /leisure\.picnic/i,
+  /religion/i,
+  /government/i,
+];
+
+const BLOCKED_OSM_TYPES = new Set([
+  'police',
+  'fire_station',
+  'post_office',
+  'courthouse',
+  'townhall',
+  'place_of_worship',
+  'social_facility',
+  'park',
+  'picnic_site',
+  'picnic_table',
+  'memorial',
+  'monument',
+]);
+
+// Keep recent location searches in memory so repeat loads are faster.
 const geoapifyCache = new Map();
 
 function geoapifyCacheKey(location, radius) {
   return `${location.lat.toFixed(3)},${location.lng.toFixed(3)},${radius}`;
 }
 
+// Abort slow network calls so the UI does not hang on a bad endpoint.
 async function fetchWithTimeout(url, options = {}, timeoutMs = 12000) {
   const controller = new AbortController();
   const timeoutId = window.setTimeout(() => controller.abort(), timeoutMs);
@@ -103,16 +134,19 @@ async function fetchWithTimeout(url, options = {}, timeoutMs = 12000) {
 }
 
 function numberFromHash(value, min, max) {
+  // Demo ratings stay consistent between reloads without needing a database.
   const hash = value.split('').reduce((total, char) => total + char.charCodeAt(0), 0);
   const range = max - min;
   return Number((min + (hash % (range * 10)) / 10).toFixed(1));
 }
 
+// Read OpenStreetMap-style tags and map them into one app category.
 function getCategoryFromTags(tags = {}) {
   const rawType = tags.shop || tags.amenity || tags.office || tags.leisure || tags.tourism || tags.craft;
   return CATEGORY_LOOKUPS[rawType] || 'other';
 }
 
+// Geoapify returns category strings, so we group them with text matching.
 function getCategoryFromGeoapifyCategories(categories = []) {
   const joined = categories.join(',');
 
@@ -147,6 +181,23 @@ function getCategoryFromGeoapifyCategories(categories = []) {
   return 'other';
 }
 
+function isBusinessLikeGeoapifyFeature(properties = {}) {
+  const categories = Array.isArray(properties.categories) ? properties.categories : [];
+  const joined = categories.join(',');
+
+  if (!properties.name) {
+    return false;
+  }
+
+  return !BLOCKED_GEOAPIFY_CATEGORY_PATTERNS.some((pattern) => pattern.test(joined));
+}
+
+function isBusinessLikeOsmTags(tags = {}) {
+  const rawType = tags.shop || tags.amenity || tags.office || tags.leisure || tags.tourism || tags.craft || tags.historic;
+  return rawType ? !BLOCKED_OSM_TYPES.has(rawType) : false;
+}
+
+// Build one Overpass query that asks for several business-like map objects nearby.
 function buildOverpassQuery({ lat, lng, radius }) {
   return `
     [out:json][timeout:25];
@@ -169,6 +220,7 @@ function buildOverpassQuery({ lat, lng, radius }) {
   `;
 }
 
+// Send the Overpass request to one mirror.
 async function fetchFromOverpass(endpoint, query) {
   const response = await fetch(endpoint, {
     method: 'POST',
@@ -186,11 +238,13 @@ async function fetchFromOverpass(endpoint, query) {
   return response.json();
 }
 
+// Pull places from Geoapify and normalize them into the app's business shape.
 async function fetchFromGeoapify(location, radius) {
   if (!GEOAPIFY_KEY) {
     return [];
   }
 
+  // Cache repeated searches so map/filter updates stay fast.
   const cacheKey = geoapifyCacheKey(location, radius);
   if (geoapifyCache.has(cacheKey)) {
     return geoapifyCache.get(cacheKey);
@@ -223,7 +277,7 @@ async function fetchFromGeoapify(location, radius) {
       const properties = feature.properties || {};
       const [longitude, latitude] = feature.geometry?.coordinates || [];
 
-      if (!properties.name || !latitude || !longitude) {
+      if (!latitude || !longitude || !isBusinessLikeGeoapifyFeature(properties)) {
         return null;
       }
 
@@ -260,12 +314,13 @@ async function fetchFromGeoapify(location, radius) {
   return businesses;
 }
 
+// Convert one raw Overpass element into the same shape used across the app.
 function normalizeOverpassBusiness(element, location) {
   const latitude = element.lat ?? element.center?.lat;
   const longitude = element.lon ?? element.center?.lon;
   const tags = element.tags || {};
 
-  if (!latitude || !longitude || !tags.name) {
+  if (!latitude || !longitude || !tags.name || !isBusinessLikeOsmTags(tags)) {
     return null;
   }
 
@@ -290,7 +345,9 @@ function normalizeOverpassBusiness(element, location) {
   };
 }
 
+// Main live-data entry point: use Geoapify first, then fall back to Overpass.
 export async function fetchNearbyBusinesses(location, radius = 12000) {
+  // Geoapify is the main source; Overpass stays in place as backup.
   if (GEOAPIFY_KEY) {
     try {
       let geoapifyBusinesses = await fetchFromGeoapify(location, radius);
@@ -341,6 +398,7 @@ export async function fetchNearbyBusinesses(location, radius = 12000) {
     .slice(0, 60);
 }
 
+// Add the seeded Little Rock businesses when the user is near that area.
 export function getFeaturedBusinesses(location) {
   return featuredBusinesses.map((business) => ({
     ...business,
@@ -349,6 +407,7 @@ export function getFeaturedBusinesses(location) {
   }));
 }
 
+// Merge seeded and live businesses into one list without duplicate ids.
 export function mergeBusinesses(location, remoteBusinesses) {
   const featured = isNearLittleRock(location) ? getFeaturedBusinesses(location) : [];
   const byId = new Map();
@@ -360,6 +419,7 @@ export function mergeBusinesses(location, remoteBusinesses) {
   return Array.from(byId.values());
 }
 
+// Blend business data with reviews and favorites so pages can render one object shape.
 export function combineBusinessData(businesses, reviews, favoritesByUser, currentUserId) {
   return businesses.map((business) => {
     const businessReviews = reviews.filter((review) => review.businessId === business.id);
@@ -379,6 +439,7 @@ export function combineBusinessData(businesses, reviews, favoritesByUser, curren
   });
 }
 
+// Apply the search/filter controls and then sort the results for the current view.
 export function filterAndSortBusinesses(businesses, filters) {
   const { searchText, category, minimumRating, sortBy } = filters;
   const query = searchText.trim().toLowerCase();
@@ -406,12 +467,14 @@ export function filterAndSortBusinesses(businesses, filters) {
   return [...filtered].sort(sorters[sortBy] || sorters.recommended);
 }
 
+// Pick the top few businesses for the featured recommendations panel.
 export function getRecommendedBusinesses(businesses) {
   return [...businesses]
     .sort((left, right) => Number(right.hasDeal) - Number(left.hasDeal) || right.rating - left.rating)
     .slice(0, 3);
 }
 
+// Build the summary numbers and leaderboards used on the analytics page.
 export function buildAnalyticsReport(businesses, reviews) {
   const categoryTotals = businesses.reduce((accumulator, business) => {
     accumulator[business.category] = (accumulator[business.category] || 0) + 1;
