@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { NavLink, Outlet } from 'react-router-dom';
-import { MapPinned, Heart, MessageSquareText, Tag, ChartColumnBig, UserRound } from 'lucide-react';
+import { MapPinned, Heart, MessageSquareText, Tag, ChartColumnBig, UserRound, Building2 } from 'lucide-react';
 import { APP_NAME, BRAND_LOGO_PATH } from '../lib/constants';
 import { useAppAuth } from '../hooks/useAuth.jsx';
 
@@ -68,6 +68,19 @@ export function Layout({ appState, appActions }) {
                 {label}
               </NavLink>
             ))}
+            {user?.role === 'owner' && (
+              <NavLink
+                to="/owner-dashboard"
+                className={({ isActive }) =>
+                  `inline-flex items-center gap-2 rounded-full px-4 py-2 text-sm font-medium transition ${
+                    isActive ? 'bg-moss text-white' : 'bg-moss/15 text-moss hover:bg-moss/25'
+                  }`
+                }
+              >
+                <Building2 size={16} />
+                My Business
+              </NavLink>
+            )}
           </nav>
         </header>
         <main className="flex-1">

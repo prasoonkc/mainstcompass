@@ -10,9 +10,11 @@ import { FavoritesPage } from './pages/FavoritesPage';
 import { ReviewsPage } from './pages/ReviewsPage';
 import { AnalyticsPage } from './pages/AnalyticsPage';
 import { AccountPage } from './pages/AccountPage';
+import { OwnerDashboardPage } from './pages/OwnerDashboardPage';
 import { DEFAULT_CENTER, STORAGE_KEYS } from './lib/constants';
 import { buildAnalyticsReport, combineBusinessData, fetchNearbyBusinesses, filterAndSortBusinesses, getFeaturedBusinesses, getRecommendedBusinesses, mergeBusinesses } from './lib/businesses';
 import { geocodeLocation, getCurrentPosition } from './lib/geo';
+import { seedDemoData } from './lib/seedDemoData';
 
 const defaultFilters = {
   searchText: '',
@@ -28,6 +30,7 @@ function AppShell() {
   const [favoritesByUser, setFavoritesByUser] = useLocalStorageState(STORAGE_KEYS.favorites, {});
   const [reviews, setReviews] = useLocalStorageState(STORAGE_KEYS.reviews, []);
   const [copiedDeals, setCopiedDeals] = useLocalStorageState(STORAGE_KEYS.copiedDeals, []);
+  const [dealRedemptions, setDealRedemptions] = useLocalStorageState(STORAGE_KEYS.dealRedemptions, []);
   const [location, setLocation] = useState(storedLocation || DEFAULT_CENTER);
   const [locationMatches, setLocationMatches] = useState([]);
   const [filters, setFilters] = useState(defaultFilters);
@@ -76,11 +79,10 @@ function AppShell() {
   }, [location]);
 
   useEffect(() => {
-    if (storedLocation) {
-      return;
+    seedDemoData();
+    if (!storedLocation) {
+      requestCurrentLocation();
     }
-
-    requestCurrentLocation();
   }, []);
 
   const enrichedBusinesses = useMemo(
@@ -198,6 +200,10 @@ function AppShell() {
     try {
       await navigator.clipboard.writeText(code);
       setCopiedDeals([...new Set([...copiedDeals, businessId])]);
+      setDealRedemptions([
+        ...dealRedemptions,
+        { businessId, code, userId: currentUserId, timestamp: new Date().toISOString() },
+      ]);
       setStatusMessage(`Copied ${code} to your clipboard.`);
     } catch {
       setErrorMessage('Could not copy the deal code on this browser.');
@@ -220,6 +226,7 @@ function AppShell() {
     filteredBusinesses,
     recommendedBusinesses,
     favoriteBusinesses,
+    favoritesByUser,
     reviewHistory,
     reviews,
     analyticsReport,
@@ -227,6 +234,7 @@ function AppShell() {
     errorMessage,
     statusMessage,
     copiedDeals,
+    dealRedemptions,
   };
 
   const appActions = {
@@ -251,6 +259,7 @@ function AppShell() {
           <Route path="deals" element={<DealsPage />} />
           <Route path="analytics" element={<AnalyticsPage />} />
           <Route path="account" element={<AccountPage />} />
+          <Route path="owner-dashboard" element={<OwnerDashboardPage />} />
         </Route>
       </Routes>
       <VoiceAssistant appState={appState} appActions={appActions} />

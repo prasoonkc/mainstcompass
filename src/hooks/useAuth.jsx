@@ -27,10 +27,12 @@ function LocalAuthProvider({ children }) {
           name: account.name,
           email: normalizedEmail,
           mode: 'local',
+          role: account.role || 'user',
+          businessId: account.businessId || null,
         });
         return { ok: true, message: 'Signed in successfully.' };
       },
-      register: ({ name, email, password, confirmPassword }) => {
+      register: ({ name, email, password, confirmPassword, role, businessId }) => {
         const trimmedName = name.trim();
         const normalizedEmail = email.trim().toLowerCase();
         const passwordPattern = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d).+$/;
@@ -67,6 +69,8 @@ function LocalAuthProvider({ children }) {
           name: trimmedName,
           email: normalizedEmail,
           password,
+          role: role || 'user',
+          businessId: businessId || null,
         };
 
         setAccounts([...accounts, nextAccount]);

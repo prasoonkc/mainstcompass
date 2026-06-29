@@ -1,14 +1,18 @@
 import { useState } from 'react';
-import { useOutletContext } from 'react-router-dom';
-import { LockKeyhole, MailCheck, UserRound, X } from 'lucide-react';
+import { useOutletContext, useNavigate } from 'react-router-dom';
+import { LockKeyhole, MailCheck, UserRound, X, Building2 } from 'lucide-react';
 import { useAppAuth } from '../hooks/useAuth.jsx';
+import { featuredBusinesses } from '../data/featuredBusinesses.js';
 
 export function AccountPage() {
   const { appState } = useOutletContext();
   const { authMode, isAuthenticated, user, login, register, logout, isLoading } = useAppAuth();
+  const navigate = useNavigate();
   const [mode, setMode] = useState('signin');
   const [signInValues, setSignInValues] = useState({ email: '', password: '' });
   const [registerValues, setRegisterValues] = useState({ name: '', email: '', password: '', confirmPassword: '' });
+  const [isOwnerAccount, setIsOwnerAccount] = useState(false);
+  const [ownerBusinessId, setOwnerBusinessId] = useState('');
   const [feedback, setFeedback] = useState('');
   const [verificationNotice, setVerificationNotice] = useState('');
 
@@ -20,12 +24,22 @@ export function AccountPage() {
 
   function handleRegister(event) {
     event.preventDefault();
-    const result = register(registerValues);
+    if (isOwnerAccount && !ownerBusinessId) {
+      setFeedback('Select the business you own to continue.');
+      return;
+    }
+    const result = register({
+      ...registerValues,
+      role: isOwnerAccount ? 'owner' : 'user',
+      businessId: isOwnerAccount ? ownerBusinessId : null,
+    });
     if (result.ok) {
       setFeedback('');
       setVerificationNotice(result.message);
       setMode('signin');
       setRegisterValues({ name: '', email: '', password: '', confirmPassword: '' });
+      setIsOwnerAccount(false);
+      setOwnerBusinessId('');
       setSignInValues((current) => ({ ...current, email: registerValues.email }));
       return;
     }
@@ -50,17 +64,31 @@ export function AccountPage() {
           <div className="mt-6 space-y-4 rounded-[1.6rem] bg-mist p-5">
             <div className="flex items-center gap-3">
               <div className="inline-flex h-12 w-12 items-center justify-center rounded-full bg-ink text-white">
-                <UserRound size={20} />
+                {user?.role === 'owner' ? <Building2 size={20} /> : <UserRound size={20} />}
               </div>
               <div>
                 <p className="font-semibold text-ink">{user?.name}</p>
                 <p className="text-sm text-ink/70">{user?.email || 'Auth0 profile'}</p>
+                {user?.role === 'owner' && (
+                  <p className="mt-0.5 text-xs font-semibold text-moss">Business Owner</p>
+                )}
               </div>
             </div>
             <p className="text-sm text-ink/70">Every review you post is connected to this account.</p>
-            <button type="button" onClick={logout} className="rounded-full bg-ink px-5 py-3 text-sm font-semibold text-white">
-              Sign out
-            </button>
+            <div className="flex flex-wrap gap-2">
+              {user?.role === 'owner' && (
+                <button
+                  type="button"
+                  onClick={() => navigate('/owner-dashboard')}
+                  className="rounded-full bg-moss px-5 py-3 text-sm font-semibold text-white"
+                >
+                  View Business Dashboard
+                </button>
+              )}
+              <button type="button" onClick={logout} className="rounded-full bg-ink px-5 py-3 text-sm font-semibold text-white">
+                Sign out
+              </button>
+            </div>
           </div>
         ) : authMode === 'auth0' ? (
           <div className="mt-6 space-y-3">
@@ -179,6 +207,34 @@ export function AccountPage() {
                     required
                   />
                 </label>
+                <label className="flex cursor-pointer items-start gap-3 rounded-2xl border border-ink/10 bg-mist p-4 text-sm">
+                  <input
+                    type="checkbox"
+                    checked={isOwnerAccount}
+                    onChange={(e) => { setIsOwnerAccount(e.target.checked); setOwnerBusinessId(''); }}
+                    className="mt-0.5 accent-moss"
+                  />
+                  <div>
+                    <p className="font-semibold text-ink">I'm a business owner</p>
+                    <p className="text-ink/60">Link this account to your business to unlock owner reporting.</p>
+                  </div>
+                </label>
+                {isOwnerAccount && (
+                  <label className="block text-sm">
+                    <span className="mb-2 block font-medium text-ink">Select your business</span>
+                    <select
+                      value={ownerBusinessId}
+                      onChange={(e) => setOwnerBusinessId(e.target.value)}
+                      className="w-full rounded-2xl border border-ink/10 bg-mist px-4 py-3 outline-none"
+                      required
+                    >
+                      <option value="">— Choose a business —</option>
+                      {featuredBusinesses.map((b) => (
+                        <option key={b.id} value={b.id}>{b.name}</option>
+                      ))}
+                    </select>
+                  </label>
+                )}
                 <button type="submit" className="rounded-full bg-ink px-5 py-3 text-sm font-semibold text-white">
                   Create account
                 </button>

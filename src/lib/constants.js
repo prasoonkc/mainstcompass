@@ -55,6 +55,7 @@ export const STORAGE_KEYS = {
   reviews: 'msc.reviews',
   copiedDeals: 'msc.copied-deals',
   location: 'msc.last-location',
+  dealRedemptions: 'msc.deal-redemptions',
 };
 
 export const BRAND_LOGO_PATH = '/brand-logo.png';
