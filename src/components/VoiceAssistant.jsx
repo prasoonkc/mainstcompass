@@ -1,6 +1,42 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { MessageSquare, Mic, MicOff, Send, Sparkles, X } from 'lucide-react';
+import { MessageSquare, Mic, MicOff, Send, Sparkles, X, Loader } from 'lucide-react';
+
+const GEMINI_KEY = import.meta.env.VITE_GEMINI_KEY;
+
+async function askGemini(userMessage, businesses, location) {
+  const topBusinesses = businesses.slice(0, 15).map((b) => ({
+    name: b.name,
+    category: b.category,
+    rating: b.rating,
+    address: b.address,
+    deal: b.deal ? b.deal.code : null,
+    description: b.description,
+  }));
+
+  const systemPrompt = `You are a friendly local business assistant for MainStreet Compass, a neighborhood discovery app.
+The user is currently browsing near: ${location?.label || 'their area'}.
+Nearby businesses: ${JSON.stringify(topBusinesses)}.
+Keep replies short (2-3 sentences max). Be helpful, specific, and mention business names when relevant.
+Do not make up businesses — only reference ones from the list provided.`;
+
+  const res = await fetch(
+    `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${GEMINI_KEY}`,
+    {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        system_instruction: { parts: [{ text: systemPrompt }] },
+        contents: [{ parts: [{ text: userMessage }] }],
+        generationConfig: { maxOutputTokens: 150, temperature: 0.7 },
+      }),
+    },
+  );
+
+  if (!res.ok) throw new Error('Gemini request failed');
+  const data = await res.json();
+  return data.candidates?.[0]?.content?.parts?.[0]?.text || 'Sorry, I could not get a response right now.';
+}
 
 function speak(message) {
   if (!('speechSynthesis' in window)) {
@@ -19,6 +55,7 @@ export function VoiceAssistant({ appState, appActions }) {
   const recognitionRef = useRef(null);
   const [isOpen, setIsOpen] = useState(true);
   const [isListening, setIsListening] = useState(false);
+  const [isThinking, setIsThinking] = useState(false);
   const [input, setInput] = useState('');
   const [messages, setMessages] = useState([
     {
@@ -153,16 +190,27 @@ export function VoiceAssistant({ appState, appActions }) {
       : 'Try asking for coffee shops, deals, favorites, reviews, analytics, or a recommendation nearby.';
   }
 
-  function submitPrompt(rawPrompt, fromVoice = false) {
+  async function submitPrompt(rawPrompt, fromVoice = false) {
     const prompt = rawPrompt.trim();
-    if (!prompt) {
-      return;
-    }
+    if (!prompt) return;
 
     setMessages((current) => [...current, { id: `${Date.now()}-user`, role: 'user', content: prompt }]);
-    const reply = handleCommand(prompt.toLowerCase(), fromVoice);
-    pushAssistantMessage(reply, fromVoice);
     setInput('');
+
+    if (GEMINI_KEY) {
+      setIsThinking(true);
+      try {
+        const reply = await askGemini(prompt, appState.businesses, appState.location);
+        pushAssistantMessage(reply, fromVoice);
+      } catch {
+        pushAssistantMessage('Having trouble connecting right now. Try again in a moment.', fromVoice);
+      } finally {
+        setIsThinking(false);
+      }
+    } else {
+      const reply = handleCommand(prompt.toLowerCase(), fromVoice);
+      pushAssistantMessage(reply, fromVoice);
+    }
   }
 
   function toggleListening() {
@@ -230,6 +278,13 @@ export function VoiceAssistant({ appState, appActions }) {
             </div>
           </div>
         ))}
+        {isThinking && (
+          <div className="flex justify-start">
+            <div className="flex items-center gap-1.5 rounded-2xl bg-white px-3 py-2 text-sm text-ink/50">
+              <Loader size={13} className="animate-spin" /> Thinking…
+            </div>
+          </div>
+        )}
       </div>
 
       <form
@@ -249,8 +304,8 @@ export function VoiceAssistant({ appState, appActions }) {
             placeholder="Ask for recommendations, directions, deals, or help"
           />
         </label>
-        <button type="submit" className="inline-flex h-11 w-11 items-center justify-center rounded-full bg-ink text-white">
-          <Send size={16} />
+        <button type="submit" disabled={isThinking} className="inline-flex h-11 w-11 items-center justify-center rounded-full bg-ink text-white disabled:opacity-50">
+          {isThinking ? <Loader size={16} className="animate-spin" /> : <Send size={16} />}
         </button>
       </form>
     </div>
