@@ -14,7 +14,6 @@ import { OwnerDashboardPage } from './pages/OwnerDashboardPage';
 import { DEFAULT_CENTER, STORAGE_KEYS } from './lib/constants';
 import { buildAnalyticsReport, combineBusinessData, fetchNearbyBusinesses, filterAndSortBusinesses, getFeaturedBusinesses, getRecommendedBusinesses, mergeBusinesses } from './lib/businesses';
 import { geocodeLocation, getCurrentPosition } from './lib/geo';
-import { seedDemoData } from './lib/seedDemoData';
 
 const defaultFilters = {
   searchText: '',
@@ -79,7 +78,6 @@ function AppShell() {
   }, [location]);
 
   useEffect(() => {
-    seedDemoData();
     if (!storedLocation) {
       requestCurrentLocation();
     }
