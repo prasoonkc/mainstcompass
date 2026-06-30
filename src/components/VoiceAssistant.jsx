@@ -1,42 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { MessageSquare, Mic, MicOff, Send, Sparkles, X, Loader } from 'lucide-react';
-
-const GEMINI_KEY = import.meta.env.VITE_GEMINI_KEY;
-
-async function askGemini(userMessage, businesses, location) {
-  const topBusinesses = businesses.slice(0, 15).map((b) => ({
-    name: b.name,
-    category: b.category,
-    rating: b.rating,
-    address: b.address,
-    deal: b.deal ? b.deal.code : null,
-    description: b.description,
-  }));
-
-  const systemPrompt = `You are a friendly local business assistant for MainStreet Compass, a neighborhood discovery app.
-The user is currently browsing near: ${location?.label || 'their area'}.
-Nearby businesses: ${JSON.stringify(topBusinesses)}.
-Keep replies short (2-3 sentences max). Be helpful, specific, and mention business names when relevant.
-Do not make up businesses — only reference ones from the list provided.`;
-
-  const res = await fetch(
-    `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${GEMINI_KEY}`,
-    {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        system_instruction: { parts: [{ text: systemPrompt }] },
-        contents: [{ parts: [{ text: userMessage }] }],
-        generationConfig: { maxOutputTokens: 150, temperature: 0.7 },
-      }),
-    },
-  );
-
-  if (!res.ok) throw new Error('Gemini request failed');
-  const data = await res.json();
-  return data.candidates?.[0]?.content?.parts?.[0]?.text || 'Sorry, I could not get a response right now.';
-}
+import { MessageSquare, Mic, MicOff, Send, Sparkles, X } from 'lucide-react';
 
 function speak(message) {
   if (!('speechSynthesis' in window)) {
@@ -55,7 +19,6 @@ export function VoiceAssistant({ appState, appActions }) {
   const recognitionRef = useRef(null);
   const [isOpen, setIsOpen] = useState(true);
   const [isListening, setIsListening] = useState(false);
-  const [isThinking, setIsThinking] = useState(false);
   const [input, setInput] = useState('');
   const [messages, setMessages] = useState([
     {
@@ -109,6 +72,9 @@ export function VoiceAssistant({ appState, appActions }) {
   }
 
   function handleCommand(command, fromVoice = false) {
+    // "near me" / "nearby" triggers GPS location switch before applying any filter.
+    const wantsNearby = command.includes('near me') || command.includes('nearby');
+
     if (command.includes('show deals')) {
       navigate('/deals');
       return 'Opening active deals for nearby businesses.';
@@ -129,12 +95,6 @@ export function VoiceAssistant({ appState, appActions }) {
       return 'Opening your reviews.';
     }
 
-    if (command.includes('use my location') || command.includes('near me')) {
-      navigate('/');
-      appActions.requestCurrentLocation();
-      return 'Refreshing results near your current location.';
-    }
-
     if (command.includes('add this to my favorites') || command.includes('save first result')) {
       const firstResult = appState.filteredBusinesses[0];
       if (firstResult) {
@@ -144,22 +104,62 @@ export function VoiceAssistant({ appState, appActions }) {
       return 'There is no visible business to save yet.';
     }
 
-    if (command.includes('coffee')) {
+    if (command.includes('coffee') || command.includes('cafe')) {
       navigate('/');
+      if (wantsNearby) appActions.requestCurrentLocation();
       appActions.updateFilters({ searchText: 'coffee', category: 'food-drink' });
-      return recommendBusinesses((business) => business.category === 'food-drink', 'Coffee and cafe picks nearby');
+      return wantsNearby
+        ? 'Switching to your location and showing coffee shops nearby.'
+        : recommendBusinesses((business) => business.category === 'food-drink', 'Coffee and cafe picks nearby');
     }
 
-    if (command.includes('restaurant') || command.includes('food')) {
+    if (command.includes('restaurant') || command.includes('food') || command.includes('eat') || command.includes('drink')) {
       navigate('/');
+      if (wantsNearby) appActions.requestCurrentLocation();
       appActions.updateFilters({ searchText: '', category: 'food-drink' });
-      return recommendBusinesses((business) => business.category === 'food-drink', 'Top food and drink spots');
+      return wantsNearby
+        ? 'Switching to your location and showing food and drink spots nearby.'
+        : recommendBusinesses((business) => business.category === 'food-drink', 'Top food and drink spots');
     }
 
-    if (command.includes('retail') || command.includes('shopping')) {
+    if (command.includes('retail') || command.includes('shopping') || command.includes('shop')) {
       navigate('/');
+      if (wantsNearby) appActions.requestCurrentLocation();
       appActions.updateFilters({ searchText: '', category: 'retail' });
-      return recommendBusinesses((business) => business.category === 'retail', 'Popular retail picks');
+      return wantsNearby
+        ? 'Switching to your location and showing shops nearby.'
+        : recommendBusinesses((business) => business.category === 'retail', 'Popular retail picks');
+    }
+
+    if (command.includes('spa') || command.includes('salon') || command.includes('beauty') || command.includes('wellness')) {
+      navigate('/');
+      if (wantsNearby) appActions.requestCurrentLocation();
+      appActions.updateFilters({ searchText: '', category: 'health-beauty' });
+      return wantsNearby
+        ? 'Switching to your location and showing health and beauty spots nearby.'
+        : recommendBusinesses((business) => business.category === 'health-beauty', 'Health and beauty picks');
+    }
+
+    if (command.includes('entertainment') || command.includes('fun') || command.includes('activity')) {
+      navigate('/');
+      if (wantsNearby) appActions.requestCurrentLocation();
+      appActions.updateFilters({ searchText: '', category: 'entertainment' });
+      return wantsNearby
+        ? 'Switching to your location and showing entertainment nearby.'
+        : recommendBusinesses((business) => business.category === 'entertainment', 'Entertainment picks');
+    }
+
+    if (wantsNearby) {
+      navigate('/');
+      appActions.requestCurrentLocation();
+      appActions.updateFilters({ searchText: '', category: 'all' });
+      return 'Switching to your current location and showing all nearby businesses.';
+    }
+
+    if (command.includes('use my location')) {
+      navigate('/');
+      appActions.requestCurrentLocation();
+      return 'Refreshing results near your current location.';
     }
 
     if (command.includes('deal') || command.includes('coupon')) {
@@ -186,31 +186,19 @@ export function VoiceAssistant({ appState, appActions }) {
     }
 
     return fromVoice
-      ? 'Try asking me to find coffee shops, show deals, recommend something nearby, or use your location.'
-      : 'Try asking for coffee shops, deals, favorites, reviews, analytics, or a recommendation nearby.';
+      ? 'Try saying "food near me", "coffee nearby", "show deals", or "recommend something".'
+      : 'Try: "food near me", "coffee nearby", "show deals", "best restaurants", or "find [business name]".';
   }
 
-  async function submitPrompt(rawPrompt, fromVoice = false) {
+  function submitPrompt(rawPrompt, fromVoice = false) {
     const prompt = rawPrompt.trim();
     if (!prompt) return;
 
     setMessages((current) => [...current, { id: `${Date.now()}-user`, role: 'user', content: prompt }]);
     setInput('');
 
-    if (GEMINI_KEY) {
-      setIsThinking(true);
-      try {
-        const reply = await askGemini(prompt, appState.businesses, appState.location);
-        pushAssistantMessage(reply, fromVoice);
-      } catch {
-        pushAssistantMessage('Having trouble connecting right now. Try again in a moment.', fromVoice);
-      } finally {
-        setIsThinking(false);
-      }
-    } else {
-      const reply = handleCommand(prompt.toLowerCase(), fromVoice);
-      pushAssistantMessage(reply, fromVoice);
-    }
+    const reply = handleCommand(prompt.toLowerCase(), fromVoice);
+    pushAssistantMessage(reply, fromVoice);
   }
 
   function toggleListening() {
@@ -278,13 +266,6 @@ export function VoiceAssistant({ appState, appActions }) {
             </div>
           </div>
         ))}
-        {isThinking && (
-          <div className="flex justify-start">
-            <div className="flex items-center gap-1.5 rounded-2xl bg-white px-3 py-2 text-sm text-ink/50">
-              <Loader size={13} className="animate-spin" /> Thinking…
-            </div>
-          </div>
-        )}
       </div>
 
       <form
@@ -304,8 +285,8 @@ export function VoiceAssistant({ appState, appActions }) {
             placeholder="Ask for recommendations, directions, deals, or help"
           />
         </label>
-        <button type="submit" disabled={isThinking} className="inline-flex h-11 w-11 items-center justify-center rounded-full bg-ink text-white disabled:opacity-50">
-          {isThinking ? <Loader size={16} className="animate-spin" /> : <Send size={16} />}
+        <button type="submit" className="inline-flex h-11 w-11 items-center justify-center rounded-full bg-ink text-white">
+          <Send size={16} />
         </button>
       </form>
     </div>
