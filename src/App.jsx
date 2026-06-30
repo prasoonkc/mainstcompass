@@ -30,7 +30,8 @@ function AppShell() {
   const [reviews, setReviews] = useLocalStorageState(STORAGE_KEYS.reviews, []);
   const [copiedDeals, setCopiedDeals] = useLocalStorageState(STORAGE_KEYS.copiedDeals, []);
   const [dealRedemptions, setDealRedemptions] = useLocalStorageState(STORAGE_KEYS.dealRedemptions, []);
-  const [location, setLocation] = useState(storedLocation || DEFAULT_CENTER);
+  // Derived directly from storedLocation — no separate state needed, avoids a stale render cycle
+  const location = storedLocation || DEFAULT_CENTER;
   const [locationMatches, setLocationMatches] = useState([]);
   const [filters, setFilters] = useState(defaultFilters);
   const [businesses, setBusinesses] = useState(getFeaturedBusinesses(DEFAULT_CENTER));
@@ -38,10 +39,6 @@ function AppShell() {
   const [errorMessage, setErrorMessage] = useState('');
   const [statusMessage, setStatusMessage] = useState('');
   const currentUserId = user?.id || 'guest';
-
-  useEffect(() => {
-    setLocation(storedLocation || DEFAULT_CENTER);
-  }, [storedLocation]);
 
   useEffect(() => {
     let isActive = true;
