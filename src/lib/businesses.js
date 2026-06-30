@@ -2,10 +2,10 @@ import { featuredBusinesses } from '../data/featuredBusinesses';
 import { CATEGORY_CONFIG } from './constants';
 import { calculateDistanceMiles, isNearLittleRock } from './geo';
 
-// Read the live business API key from Vite env vars.
+// read the live business API key from Vite env vars
 const GEOAPIFY_KEY = import.meta.env.VITE_GEOAPIFY_KEY;
 
-// Convert raw place types into the app's shared category names.
+// convert raw place types into the app category names
 const CATEGORY_LOOKUPS = {
   cafe: 'food-drink',
   restaurant: 'food-drink',
@@ -67,7 +67,7 @@ const CATEGORY_LOOKUPS = {
   social_facility: 'community',
 };
 
-// Try several Overpass mirrors because public map endpoints can be unreliable.
+// try several Overpass mirrors - public map endpoints can be unreliable.
 const OVERPASS_ENDPOINTS = [
   'https://overpass-api.de/api/interpreter',
   'https://overpass.kumi.systems/api/interpreter',
@@ -220,16 +220,16 @@ function buildOverpassQuery({ lat, lng, radius }) {
   `;
 }
 
-// Send the Overpass request to one mirror.
+// Send the Overpass request to one mirror — 8 s client timeout per mirror.
 async function fetchFromOverpass(endpoint, query) {
-  const response = await fetch(endpoint, {
+  const response = await fetchWithTimeout(endpoint, {
     method: 'POST',
     headers: {
       'Content-Type': 'text/plain;charset=UTF-8',
       Accept: 'application/json',
     },
     body: query,
-  });
+  }, 8000);
 
   if (!response.ok) {
     throw new Error(`Overpass request failed with status ${response.status}`);
@@ -419,7 +419,7 @@ export function mergeBusinesses(location, remoteBusinesses) {
   return Array.from(byId.values());
 }
 
-// Blend business data with reviews and favorites so pages can render one object shape.
+// combine business data + reviews and favorites so pages can render one object shape
 export function combineBusinessData(businesses, reviews, favoritesByUser, currentUserId) {
   return businesses.map((business) => {
     const businessReviews = reviews.filter((review) => review.businessId === business.id);
@@ -439,7 +439,7 @@ export function combineBusinessData(businesses, reviews, favoritesByUser, curren
   });
 }
 
-// Apply the search/filter controls and then sort the results for the current view.
+// apply search/filter controls and sort results for current view
 export function filterAndSortBusinesses(businesses, filters) {
   const { searchText, category, minimumRating, sortBy } = filters;
   const query = searchText.trim().toLowerCase();

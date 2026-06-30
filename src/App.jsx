@@ -44,7 +44,8 @@ function AppShell() {
     let isActive = true;
 
     async function discoverBusinesses() {
-      // Pull nearby businesses whenever the user changes the search area.
+      // Clear stale businesses immediately so the old location's list never persists.
+      setBusinesses(getFeaturedBusinesses(location));
       setIsDiscovering(true);
       setErrorMessage('');
 
